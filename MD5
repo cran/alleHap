@@ -1,0 +1,9 @@
+5b48aab5c409897035375ba96d783ef3 *DESCRIPTION
+a9b286dc75b555457893767cf4ee1912 *NAMESPACE
+ba5288ded47aee568430176fca85bf86 *R/buildFunctions.R
+24048e8cb667c2794fef59336aa717b6 *R/buildHaps.R
+905156d820a418503b724f24cae39bc6 *R/simFams.R
+9bcbead417f6b2125cbc45938b0fcb8c *R/simFunctions.R
+cf725cb6a7db27dac082c716cc186ecb *man/alleHap-package.Rd
+3567ac12ba0994d1aa5809f408e58262 *man/buildHaps.Rd
+b8d30134df2cec62526eb814b95c9332 *man/simFams.Rd
