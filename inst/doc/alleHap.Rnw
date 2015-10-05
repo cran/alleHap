@@ -1,0 +1,349 @@
+\documentclass[titlepage,twoside]{article}
+\usepackage[titletoc]{appendix}
+\usepackage[a4paper]{geometry}
+\newgeometry{top=3.5cm,bottom=3cm,left=3cm,right=3cm}
+\usepackage{float}
+\usepackage{etoolbox}
+\patchcmd{\abstract}{\null\vfil}{}{}{}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[RE,LO]{\textbf{alleHap} vignette}
+\fancyhead[RO,LE]{Page \thepage}
+\usepackage{multirow}
+\setcounter{secnumdepth}{5}
+\setcounter{tocdepth}{5}
+\usepackage{footnote}
+\usepackage[justification=centering]{caption}
+\usepackage{enumerate}
+\usepackage[hidelinks]{hyperref}
+%\VignetteEngine{knitr::knitr}
+%\VignetteIndexEntry{alleHap vignette}
+
+\begin{document}
+
+<<include=FALSE>>=
+library(knitr)
+opts_chunk$set(concordance=TRUE)
+library(alleHap)
+library(abind)
+library(tools)
+set.seed(12345678)
+@
+
+\input{./main_Page.tex}
+
+\begin{abstract}
+
+\texttt{alleHap} contains tools to simulate alphanumeric alleles, impute genetic missing data and reconstruct non-recombinant haplotypes from pedigree databases in a deterministic way. Allelic simulations can be implemented taking into account many factors (such as number of families, markers, alleles per marker, probability and proportion of missing genotypes, recombination rate, etc). Genotype imputation can be used with simulated datasets or previously loaded databases (in .ped file biallelic format). Haplotype reconstruction can be performed even with missing data, because of \texttt{alleHap} firstly imputes each family genotype (considering that each member, due to meiosis, should unequivocally have two alleles, one inherited from each parent. \texttt{alleHap} is very robust against inconsistencies within the genotypic data, warning when they occur. Furthermore, the package is handy, intuitive and consumes little time, even when handling large amounts of genetic data. This vignette intends to explain in detail how \texttt{alleHap} package works for the desired applications, and it includes illustrated explanations and easily reproducible examples. 
+\end{abstract}
+
+\tableofcontents
+
+\newpage
+
+\section{Introduction}
+Genotype imputation and haplotype reconstruction have achieved an important role in Genome Wide Association Studies (GWAS) during recent years. Estimation methods are frequently used to infer either missing genotypes as well as haplotypes from databases containing related and/or unrelated subjects. The majority of these analysis have been developed using several statistical methods \cite{Brown:11} which are able to impute probabilistically genotypes as well as perform haplotype phasing (also known as haplotype estimation) of the corresponding genomic regions.
+
+Currently algorithms do not carry out genotype imputation or haplotype reconstruction using deterministic techniques on pedigree databases. Despite the fact that computational inference by probabilistic models may cause a number of incorrect inferences, studies composed of large pedigrees are very infrequent. These methods are usually focused in population data and in case of pedigree data, families normally are comprised by trios \cite{Brown:09}, being uncommon those studies consisting of more than two offspring for each line of descent.
+
+On the other hand, certain regions are very stable against recombination but at the same time they may be highly polymorphic. For this reason, in some well studied regions (such as Human Leukocyte Antigen (HLA) loci \cite{Mack:13} in the extended human Major Histocompatibility Complex (MHC) \cite{Bakker:06}) an alphanumeric nomenclature is needed to facilitate later analysis. Under this juncture, the available typing techniques usually are not able to determine the allele phase and therefore the constitution of the appropriate haplotypes is not possible. Although some computational methods have been evaluated for the reconstruction of haplotypes \cite{Caste:10}, none of them is capable to perform haplotype phasing or genotype imputation of missing data without using reference panels and probabilistic techniques which may lead inaccurate results.
+
+\section{Theoretical Description}
+
+\texttt{alleHap} algorithms are based on a preliminary analysis of all possible combinations that may exist in the genotype of a family, considering that each member should unequivocally have inherited two alleles, one from each parent. The analysis was founded on the differentiation of seven cases, as was described in \cite{BerWof:07}. Each case has been grouped considering the number of unique (or different) alleles per family. So, using the notation $N_{par}$: \emph{Number of unique alleles in parents} and $N_{p}$: \emph{Number of unique alleles in parent $p$}, the expression: $\left(N_{par},N_{1},N_{2}\right)$ will be able to identify all the non-recombinant configurations in families with one line of descent (i.e. parent-offspring pedigree). The table~\ref{figure:biAllConf} shows the different configurations in biallelic mode:
+
+\begin{table}[H]
+\centering
+\resizebox{0.9\textwidth}{!}{
+\begin{minipage}{\textwidth}
+\centering
+\begin{tabular}{c|ccccccc}
+%\hline
+Configurations                      & 1     & 2     & 3     & 4     & 5     & 6     & 7     \\ \hline
+$N_{par}$                           & 1     & 2     & 2     & 3     & 2     & 3     & 4     \\ \hline
+($N_{1}$,$N_{2}$)                   & (1,1) & (1,1) & (1,2) & (1,2) & (2,2) & (2,2) & (2,2) \\ \hline
+\multirow{2}{*}{Parents}            & a/a   & a/a   & a/a   & a/a   & a/b   & a/b   & a/b   \\
+                                    & a/a   & b/b   & a/b   & b/c   & a/b   & a/c   & c/d   \\ \hline
+\multirow{4}{*}{Possible Offsring}  & a/a   & a/b   & a/a   & a/b   & a/a   & a/a   & a/c   \\
+                                    &       &       & a/b   & a/c   & b/b   & a/b   & a/d   \\
+                                    &       &       &       &       & a/b   & a/c   & b/c   \\
+                                    &       &       &       &       &       & b/c   & b/d   \\ %\hline
+\end{tabular}
+\caption{Biallelic configurations in a parent-offspring pedigree}
+\label{figure:biAllConf} 
+\end{minipage} }
+\end{table}
+
+An identification of the homozygous genotypes for each family is necessary for the proper operation of \texttt{alleHap}. An example of some biallelic genotypes (left) and their corresponding Homozygosity (HMZ) matrix is shown in the next table:
+
+\begin{table}[H]
+\centering
+\resizebox{0.9\textwidth}{!}{
+\begin{minipage}{\textwidth}
+\centering
+\begin{tabular}{c|ccccccc|ccccccc}
+\multicolumn{1}{r|}{}     & \multicolumn{7}{c|}{Unphased Data} & \multicolumn{7}{c}{Homozygosity Info.} \\ \hline
+Marker                    & 1   & 2   & 3   & 4   & 5   & 6   & 7   & 1  & 2  & 3  & 4  & 5  & 6 & 7 \\ \hline
+\multirow{2}{*}{Parents}  & a/a & a/a & a/a & a/a & a/b & a/b & a/b & 1  & 1  & 1  & 1  & 0  & 0 & 0 \\
+                          & a/a & b/b & a/b & b/c & a/b & a/c & c/d & 1  & 1  & 0  & 0  & 0  & 0 & 0 \\ \hline
+\multirow{4}{*}{Offsring} & a/a & a/b & a/a & a/b & a/a & a/a & a/c & 1  & 0  & 1  & 1  & 1  & 0 & 0 \\
+                          &     &     & a/b & a/c & b/b & a/b & a/d &    &    & 0  & 1  & 1  & 0 & 0 \\
+                          &     &     &     &     & a/b & a/c & b/c &    &    &    &    & 0  & 0 & 0 \\
+                          &     &     &     &     &     & b/c & b/d &    &    &    &    &    & 0 & 0 
+\end{tabular}
+\caption{Biallelic genotypes and HMZ matrix}
+\label{figure:biAllHMZConf} 
+\end{minipage} }
+\end{table}
+
+In order to perform the phasing of the genotypes, \texttt{alleHap} firstly creates an IDentified/Sorted (IDS) matrix per family. An example of the phased genotypes of a family (left) and their corresponding IDS values (right) is the following:
+
+\begin{table}[H]
+\centering
+\resizebox{0.9\textwidth}{!}{
+\begin{minipage}{\textwidth}
+\centering
+\begin{tabular}{c|ccccccc|ccccccc}
+\multicolumn{1}{r|}{}       & \multicolumn{7}{c|}{Phased Data}                      & \multicolumn{7}{c}{IDS Information}           \\ \hline
+Marker                      & 1     & 2     & 3     & 4     & 5     & 6     & 7     & 1   & 2   & 3   & 4   & 5   & 6   & 7   \\ \hline
+\multirow{2}{*}{Parents}    & a$|$a & a$|$a & a$|$a & a$|$a & a$|$b & a$|$b & a$|$b & 1   & 1   & 1   & 1   & 1   & 1   & 1   \\
+                            & a$|$a & b$|$b & a$|$b & b$|$c & a$|$b & a$|$c & c$|$d & 1   & 1   & 1   & 1   & 1   & 1   & 1   \\ \hline
+\multirow{4}{*}{Offspring}  & a$|$a & a$|$b & a$|$a & a$|$b & a$|$a & a$|$a & a$|$c & 1   & 1   & 1   & 1   & 1   & 1   & 1   \\
+                            &       &       & a$|$b & a$|$c & b$|$b & a$|$b & a$|$d &     &     & 1   & 1   & 1   & 1   & 1   \\
+                            &       &       &       &       & a/b   & a$|$c & b$|$c &     &     &     &     & 0   & 1   & 1   \\
+                            &       &       &       &       &       & b$|$c & b$|$d &     &     &     &     &     & 1   & 1   \\ %\hline
+\end{tabular}
+\caption{Phased genotypes and IDS matrix}
+\label{figure:IDSConf} 
+\end{minipage} }
+\end{table}
+
+Sometimes, missing values may occur. These can be located either in parents or children. An example of this is depicted as follows: 
+
+\begin{table}[H]
+\centering
+\resizebox{0.9\textwidth}{!}{
+\begin{minipage}{\textwidth}
+\centering
+\begin{tabular}{c|ccccccc|ccccccc}
+\multicolumn{1}{r|}{}       & \multicolumn{7}{c|}{Phased and Missing Data}          & \multicolumn{7}{c}{IDS Information}           \\ \hline
+Marker                      & 1     & 2     & 3     & 4     & 5     & 6     & 7     & 1   & 2   & 3   & 4   & 5   & 6   & 7   \\ \hline
+\multirow{2}{*}{Parents}    & a$|$a & a$|$a & a$|$a & a$|$a & NA    & NA    & NA    & 1   & 1   & 1   & 1   & 0   & 0   & 0   \\
+                            & NA    & NA    & NA    & b$|$c & a$|$b & a$|$b & a$|$b & 0   & 0   & 0   & 1   & 1   & 1   & 1   \\ \hline
+\multirow{4}{*}{Offspring}  & a$|$a & a$|$b & a$|$a & NA    & a$|$a & a$|$a & a$|$c & 1   & 1   & 1   & 0   & 1   & 1   & 1   \\
+                            &       &       & a$|$b & a$|$c & b$|$b & a/b   & a$|$d &     &     & 1   & 1   & 1   & 0   & 1   \\
+                            &       &       &       &       & a/b   & a$|$c & b$|$c &     &     &     &     & 0   & 1   & 1   \\
+                            &       &       &       &       &       & b$|$c & b$|$d &     &     &     &     &     & 1   & 1   \\ %\hline
+\end{tabular}
+\caption{Phased genotypes and IDS matrix with missing data}
+\label{figure:IDSConfMiss} 
+\end{minipage} }
+\end{table}
+
+\section{Input Format} \label{input_format}
+
+\texttt{alleHap} only works with PED files, although it can detect and adapt similar formats (with the same structure) in order to later load the data.
+
+\subsection{PED files}
+A PED file is a white-space (space or tab) delimited file where the first six columns are mandatory and the rest of columns are the genotype: \emph{Family ID} (identifier of each family), \emph{Individual ID} (identifier of each member of the family), \emph{Paternal ID} (identifier of the paternal ancestor), \emph{Maternal ID} (identifier of the maternal ancestor), \emph{Sex} (genre of each individual: 1=male, 2=female, other=unknown), \emph{Phenotype} (quantitative trait or affection status of each individual: -9=missing, 0=unaffected, 1=affected) and \emph{\textbf{Genotype}} (genotype of each individual in biallelic or coded format).
+
+The IDs are alphanumeric: the combination of family and individual ID should uniquely identify a person. \textbf{PED files must have 1 and only 1 phenotype in the sixth column}. The phenotype can be either a quantitative trait or an affection status column. Genotypes (column 7 onwards) should also be white-space delimited; they can be any character (e.g. 1,2,3,4 or A,C,G,T or anything else) except 0 which is, by default, the missing genotype character. All markers should be biallelic and must have two alleles specified \cite{Plink:07}. For example, a family composed by 3 individuals typed for N SNPs is represented in Table~\ref{table:PEDfile}:
+
+\begin{table}[H]
+\centering
+\resizebox{0.8\textwidth}{!}{
+\begin{minipage}{\textwidth}
+\centering
+\begin{tabular}{c|c|c|c|c|c|cc|cc|ccccc|}
+\emph{Fam ID\footnote{ No header row should be given.}} & \emph{Ind ID} & \emph{Pat ID} & \emph{Mat ID} & \emph{Sex} & \emph{Pheno} & \multicolumn{2}{c|}{\emph{Mkr\_1}} & \multicolumn{2}{c|}{\emph{Mkr\_2}} & \multicolumn{2}{c}{\emph{Mkr\_3}} &    & \multicolumn{2}{c|}{\emph{Mkr\_N}} \\ 
+FAM001 & 1 & 0 & 0 & 1 & 0 & A & A & G & G & A & C & ... & C & G \\
+FAM001 & 2 & 0 & 0 & 2 & 1 & A & A & A & G & C & C & ... & A & G \\
+FAM001 & 3 & 0 & 0 & 1 & 0 & A & A & G & A & A & C & ... & C & A \\
+\end{tabular}
+\caption{Example of a Family in .ped file format}
+\label{table:PEDfile} 
+\end{minipage} }
+\end{table}
+
+\subsection{NA values}
+The missing values or Not Available (NA) values may be placed either in the first 6 colums or in genotype columns. In the genotype colums, when some values are missing either both alleles should be -9, NA, "NA" or "<NA>". An example of this would be:
+<<echo=FALSE, comment=NA,highlight=TRUE>>=
+famIDs <- data.frame(famID="FAM001",indID=1:5,patID=c(0,0,1,1,1),
+                     matID=c(0,0,2,2,2),sex=c(1,2,1,2,1),phenot=0)
+Mkrs <- rbind(c(1,2, NA,NA, 1,2),c(3,4, 1,2, 3,4),
+              c(1,3, 1,2, 1,3),c(NA,NA, 1,1, 2,4),c(1,4, 1,1, 2,4))
+colnames(Mkrs)=c("Mk1_1","Mk1_2","Mk2_1","Mk2_2","Mk3_1","Mk3_2")
+(family <- cbind(famIDs,Mkrs))
+@
+
+\section{Data Simulation}
+This part of the package simulates biallelic pedigree databases which can be performed taking into account many different factors such as number of families to generate, number of markers (allele pairs), number of different alleles per marker, type of alleles (numeric or character), number of different haplotypes in the population, probability of parent/offspring missing genotypes, proportion of missing genotypes per individual, probability of being affected by disease and recombination rate.
+
+\subsection{alleSimulator Function}
+\texttt{alleSimulator} function generates the clinical and genetic information of a group of families according to the previously defined parameters. In order to simulate the data, this function has been developed in several steps:
+
+\begin{enumerate}[I.]
+  \item \textbf{Internal Functions}: In this step are loaded all the necessary functions to simulate the data. These functions are \emph{labelMrk} (which creates the 'A','C','G','T' character labels), \emph{simHapSelection} (which selects n different haplotypes between the total number of possible haplotypes), \emph{simOffspring} (which generates n offspring by selecting randomly one haplotype from each parent), \emph{simOneFamily} (which simulates one family from a population containing the haplotypes 'popHaplos') and \emph{simRecombHap} (which simulates the recombination of haplotypes).
+  \item \textbf{Alleles per Marker}: The second step is the simulation of a number of alleles per marker (if they are not supplied by user). It is assigned an allele range per marker whether alleles are not character type and, if alleles are character type, they are repeated two times.
+  \item \textbf{Haplotypes in population}: Once the number of alleles per marker and the haplotype size of the population (n) are specified, the population haplotypes are generated. In this proccess n different haplotypes were selected among the total number of possible haplotypes.
+  \item \textbf{Data Concatenation}: In this step the clinical and the previous simulated data of all families are concatenated. 
+  \item \textbf{Data Labelling}: The fifth step is the labelling of the previous concatenated data ("famID", "indID", "patID", "matID", "sex", "phenot", "markers", "recombNr", "ParentalHap", "MaternalHap").
+  \item \textbf{Data Conversion}: The sixth step is the convertion of the previous generated data into the most suitable type (integer and/or character).
+  \item \textbf{Missing Data Generation}: The seventh step is the insertion of missing values in the previous generated dataset (only when users require it). The missing values may be generated taking into account four different factors: \textit{missParProb} (probability of parents' missing genotype), \textit{missOffProb} (probability of offspring' missing genotype), \textit{ungenotPars} (proportion of ungenotyped parents) and \textit{ungenotOffs} (proportion of ungenotyped offspring).
+  \item \textbf{Function Output}: The last step is the creation of a list containing two different data.frames, for genotype and haplotypes respectively. This may be useful in order to compare simulated haplotypes with later phased haplotypes.
+\end{enumerate}
+
+\subsection{alleSimulator Examples}
+Below are listed a couple of examples of how \texttt{alleSimulator} works:
+\paragraph*{\emph{alleSimulator Example 1:}}
+\emph{Simulation of a family containing parental missing data.}
+<<comment=NA,prompt=TRUE,background='#EFF5FB'>>=
+simulatedFam1 <- alleSimulator(1,2,3,missParProb=0.2,ungenotPars=0.2)
+simulatedFam1[[1]]    # Alleles (genotypes) of the 1st simulated family
+simulatedFam1[[2]]    # Haplotypes of the 1st simulated family
+@
+\paragraph*{\emph{alleSimulator Example 2:}}
+\emph{Simulation of a family containing offspring missing data.}
+<<comment=NA,prompt=TRUE,background='#EFF5FB'>>=
+simulatedFam2 <- alleSimulator(1,3,3,missOffProb=0.2,ungenotOffs=0.2)
+simulatedFam2[[1]]    # Alleles (genotypes) of the 2nd simulated family
+simulatedFam2[[2]]    # Haplotypes of the 2nd simulated family
+@
+
+\newpage
+\section{Workflow}
+The workflow of \texttt{alleHap} comprise mainly three stages: \emph{Data Loading}, \emph{Data Imputation} and \emph{Data Phasing}. The next subsections will describe each of them.
+
+\subsection{Data Loading}
+The package can be used with either simulated or non-simulated databases, and the data may contain or not genetic missing information. As it has mentioned in the \ref{input_format} section, the .ped file is the default input format of \texttt{alleHap}, and although its loading process is quite simple, it is important to note that a file containing \textbf{a large number of markers could slow down the process}. Furthermore, in order to avoid the foregoing, it is highly recommended that users \textit{split the dataset into chromosomes}. Each data chunk should be later loaded by the \texttt{alleLoader} function. 
+
+\texttt{alleHap} has been tested with the Type 1 Diabetes genetics Consortium database \cite{t1dgc:06}. This database consisted of over 3000 families and 20 markers (16 numeric and 4 character type: "A", "C", "G" or "T"). One example of a dataset with similar genetic information is the following one:
+
+\subsubsection{alleLoader Function}
+The \texttt{alleLoader} function tries to load the user dataset into a fully compatible format. In order to perform the above this function has been developed in four steps:
+
+\begin{enumerate}[I.]
+  \item \textbf{Extention check and data read}: In this step the extension file is checked and if it has a .ped type the dataset is loaded into R as a data.frame. Should this not occur, the message \textit{"The file must have a .ped extension"} is returned and the data will not be loaded.
+  \item \textbf{Data check}: The second step counts the number of families, individuals, parents, children, males, females and markers of the dataset, as well as, it checks the ranges of paternal IDs, maternal IDs, genotypes and phenotype values. 
+  \item \textbf{Missing data check}: This step checks the unknown data and adjusts the genotype missing data by replacing the 0 and -9 values with NAs (Not Available values).
+  \item \textbf{Function output}: In the final step, the dataset is exported as a data.frame and a summary of previous data counting, ranges and missing values is printed into the screen.
+\end{enumerate}
+
+\subsubsection{alleLoader Examples}
+Below it is depicted an example of how \texttt{alleLoader} should be used:
+\paragraph*{\emph{alleLoader Example 1:}}
+\emph{Loading of a dataset in .ped format with alphabetical alleles (A,C,G,T)}
+<<comment=NA,prompt=TRUE,background='#EFF5FB'>>=
+example1 <- file.path(find.package("alleHap"), "examples", "example1.ped")
+
+example1Alls <- alleLoader(example1)  # Loaded alleles of the example 1
+example1Alls[1:10,1:20]  # Alleles of the first 10 subjects
+@
+\paragraph*{\emph{alleLoader Example 2:}}
+\emph{Loading of a dataset in .ped format with numerical alleles}
+<<comment=NA,prompt=TRUE,background='#EFF5FB'>>=
+example2 <- file.path(find.package("alleHap"), "examples", "example2.ped")
+
+example2Alls <- alleLoader(example2)  # Loaded alleles of the example 2
+example2Alls[1:9,]  # Alleles of the first 9 subjects
+@
+
+\newpage
+\subsection{Data Imputation}
+This part of the package imputes the previous simulated/loaded datasets by analyzing all possible combinations of a parent-offspring pedigree in which parental and/or offspring genotypes may be missing; as long as one child was genotyped, in certain cases it is possible an unequivocal imputation of missing genotypes both in parents and children. 
+
+\subsubsection{alleImputer Function}
+\texttt{alleImputer} sorts the alleles of each family marker (when possible) and then imputes the missing values. In order to perform the data imputation, this function has been developed in six steps:
+
+\begin{enumerate}[I.]
+  \item \textbf{Internal Functions}: In this step are loaded all the necessary functions to impute the data. The most important ones are: \emph{mkrImputer} (which performs the imputation of a marker), \emph{famImputer} (which imputes all the markers of a family) and \emph{famsImputer} (which imputes all given families).
+  \item \textbf{Data Loading}: The second step tries to load user's data into a fully compatible format by means of the \texttt{alleLoader} function.
+  \item \textbf{Imputation}: This is the most important step of the \texttt{alleImputer} function. The imputation is performed marker by marker and then, family by family. The marker imputation is implemented by \texttt{mkrImputer} internal function which in two stages: children imputation and parent imputation. Given a marker with missing values, these can be imputed only either the genotypes of a parent and/or a child are homozygous. If in a marker, one parent has missing alleles and the other not, and the heterozygous alleles of children are not present in the complete parent, those alleles are imputed to the other parent.
+  \item \textbf{Data Summary}: Once the imputation is done, a summary of the imputed data are collected.
+  \item \textbf{Data Storing}: In this step, the imputed data are stored in the same path where the PED file was located.
+  \item \textbf{Function Output}: In this final step, a imputation summary may be printed out, if \emph{dataSummary}=TRUE. Imputed data can be directly returned, whether \emph{invisibleOutput} is deactivated. Incidence messages can be shown, if they are detected. These incidences can be: a) \textit{"Some children have no common alleles with a parent"}, b) \textit{"More alleles than possible in this marker"}, c) \textit{"Some children have alleles not present in parents"}, d) \textit{"Some homozygous children are not compatible in this marker"}, e) \textit{"Three or more unique heterozygous children share the same allele"}, f1) \textit{"Heterozygous parent and more than two unique homozygous children"}, f2) \textit{"Heterozygous parent, four unique alleles and more than one unique homozygous children"}, f3) \textit{"Homozygous parent and more than two unique children"}, g1) \textit{"More than four unique children geneotypes in the family"} or g2) \textit{"Homozygous genotypes and four unique alleles in children"}.
+
+\end{enumerate}
+
+
+\subsubsection{alleImputer Examples}
+Below are listed a couple of examples showing how \texttt{alleImputer} works:
+\paragraph*{\emph{alleImputer Example 1:}}
+\emph{Allele imputation of families containing parental missing data.}
+<<comment=NA,prompt=TRUE,background='#EFF5FB'>>=
+## Simulation of a family contatining parental missing data
+simulatedFam1 <- alleSimulator(1,2,3,missParProb=0.6,dataSummary=FALSE)
+
+simulatedFam1[[1]]  # Alleles of the simulated family
+
+## Allele imputation of the previous family
+imputedFam1 <- alleImputer(simulatedFam1[[1]])  
+imputedFam1$imputedMkrs # Imputed alleles (markers)
+@
+
+\paragraph*{\emph{alleImputer Example 2:}}
+\emph{Allele imputation of families containing offspring missing data.}
+<<comment=NA,prompt=TRUE,background='#EFF5FB'>>=
+## Simulation of two families containing offspring missing data
+simulatedFam2 <- alleSimulator(2,2,3,missOffProb=0.6,dataSummary=FALSE)
+simulatedFam2[[1]] # Alleles of the simulated families
+
+## Allele imputation of the previous familes
+imputedFam2 <- alleImputer(simulatedFam2[[1]])
+imputedFam2$imputedMkrs # Imputed alleles (markers)
+@
+
+\subsection{Data Phasing}
+At this stage, the corresponding haplotypes of the biallelic pedigree databases are generated. To accomplish this, based on the user's knowledge of the intended genomic region to analyse, it is necessary to \textbf{slice the data into non-recombinant chunks} in order to perform the haplotype reconstruction to each of them. 
+
+\subsubsection{hapPhaser Function}
+\texttt{hapPhaser} creates the haplotypes family by family taking into account the previously imputed genotypes, along with the matrix IDS. In order to generate the haplotypes, this function has been developed in six steps:
+
+\begin{enumerate}[I.]
+  \item \textbf{Internal Functions}: In this step, numerous functions to reconstruct the haplotypes were implemented, being the most important the \emph{famPhaser} function (which develops the haplotype phasing per family), \emph{famsPhaser} (which reconstructs the haplotypes for multiple families) and \emph{summarizeData} (which generates a summary of the phased data).
+  \item \textbf{Imputation}: This step calls the \texttt{alleImputer} function which performs the imputation marker by marker and then, family by family. 
+  \item \textbf{Phasing}: This part is the most important of \texttt{hapPhaser}, since it tries to solve the haplotypes when possible. The process is the following: once each family genotype has been imputed marker by marker, those markers containing two unique heterozygous alleles (both in parents and offspring) are excluded from the process. Then, an IDentified/Sorted (IDS) matrix is generated per family. Later, the internal function \texttt{famPhaser} tries to solve the haplotypes of each family, comparing the information between parents and children in an iterative and reciprocal way. When there are not genetic data in both parents and there are two or more "unique" offspring (not twins or triplets), the internal functions \texttt{solveHapsWithMissingParents} and \texttt{phaseHapsFromTwoChildren} try to solve the remaining data. Finally, the HoMoZygosity (HMZ) matrix is updated and the excluded markers are again included.
+  \textit{Even if both parental alleles are missing in each marker, it is possible to reconstruct the family haplotypes, identifying the corresponding children's haplotypes, although \textbf{in certain cases their parental provenance will be unknown}}.
+  \item \textbf{Data Summary}: Once the data phasing is done, a summary of the phased data is collected.
+  \item \textbf{Data Storing}: In this step, the imputed data are stored in the same path where the PED file was located.
+  \item \textbf{Function Output}: In this final step, a summary of the phased data may be printed out, if \emph{dataSummary}=TRUE. All the results can be directly returned, whether \emph{invisibleOutput} is deactivated. Incidence messages can also be shown, if they are detected. These may be caused by haplotype recombination on children, genotyping errors or inheritance from non-declared parents. The messages shown in such cases are: \textit{"Irregular inheritance detected"}, \textit{"Multiple compatible parental haplotypes"}, \textit{"Parental information is not compatible with haplotypes found in children"}, \textit{Haplotypes in one child are not compatible with the haplotypes found in the rest of the offspring}, or \textit{"Less than two children detected"}.
+  
+\end{enumerate}
+
+The final output the \texttt{hapPhaser} is a list comprised by five elements: \emph{imputedMkrs} (which contains the imputed markers), \emph{imputationSummary} (which shows a summary of the imputation process), \emph{phasedMkrs} (which includes the phased alleles for all markers) and \emph{haplotypes} (which stores the phased haplotypes, the number of non-phased alleles, the full phased haplotypes and IDentified/Sorted individuals) and \emph{phasingSummary} (which shows a summary of the phasing process). 
+
+\subsubsection{hapPhaser Examples}
+Below are listed some examples showing how \texttt{hapPhaser} works:
+
+\paragraph*{\emph{hapPhaser Example 1:}}
+\emph{Haplotype reconstruction of a dataset containing parental missing data.} 
+<<comment=NA,prompt=TRUE,background='#EFF5FB'>>=
+## Simulation of familes containing parental missing data
+simulatedFams1 <- alleSimulator(2,2,6,missParProb=0.2,
+                                ungenotPars=0.4,dataSummary=FALSE)
+## Reconstruction of previous simulated families
+phasedFams1 <- hapPhaser(simulatedFams1[[1]])
+simulatedFams1[[1]][,-(1:6)] # Simulated alleles
+phasedFams1$phasedMkrs[,-(1:6)] # Imputed/Phased markers
+phasedFams1$haplotypes # Phased haplotypes
+@
+
+\paragraph*{\emph{hapPhaser Example 2:}}
+\emph{Haplotype reconstruction of a dataset containing offspring missing data.}
+<<comment=NA,prompt=TRUE,background='#EFF5FB'>>=
+## Simulation of families containing offspring missing data
+simulatedFams2 <- alleSimulator(2,2,6,missOffProb=0.4,
+                                ungenotOffs=0.2,dataSummary=FALSE)
+simulatedFams2[[1]][,-(1:6)] # Simulated alleles
+## Reconstruction of previous simulated families
+phasedFams2 <- hapPhaser(simulatedFams2[[1]],dataSummary=FALSE)
+phasedFams2$phasedMkrs[,-(1:6)] # Imputed/Phased markers 
+phasedFams2$haplotypes # Phased haplotypes
+@
+
+\newpage
+\bibliographystyle{alpha}
+\bibliography{alleHap}
+
+\end{document}
