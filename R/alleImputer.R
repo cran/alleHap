@@ -10,13 +10,13 @@
 #' @examples
 #' 
 #' ## Imputation of families containing parental missing data
-#' simulatedFams <- alleSimulator(10,4,6,missParProb=0.2,dataSummary=FALSE) 
-#' famsAlls <- simulatedFams[[1]]       # Alleles (genotypes) of the simulated families
+#' simulatedFams <- alleSimulator(10,4,6,missParProb=0.2) 
+#' famsAlls <- simulatedFams[[1]]       # Original data 
 #' alleImputer(famsAlls)                # Imputed alleles (genotypes)
 #' 
 #' ## Imputation of families containing offspring missing data
-#' datasetAlls <- alleSimulator(10,4,6,missOffProb=0.2,dataSummary=FALSE)
-#' famsAlls <- simulatedFams[[1]]       # Alleles (genotypes) of the simulated families
+#' datasetAlls <- alleSimulator(10,4,6,missOffProb=0.2)
+#' famsAlls <- simulatedFams[[1]]       # Original data 
 #' alleImputer(famsAlls)                # Imputed alleles (genotypes)
 #' 
 #' ## Imputation of a family marker containing missing values in one parent and one child
@@ -24,18 +24,18 @@
 #'                       matID=c(0,0,2,2,2),sex=c(1,2,1,2,1),phenot=0)
 #' mkr <- rbind(father=c(NA,NA),mother=c(1,3),child1=c(1,1),child2=c(2,3),child3=c(NA,NA))
 #' colnames(mkr) <- c("Mkr1_1","Mkr1_2")
-#' famMkr <- cbind(infoFam,mkr)         # Alleles (genotypes) of the family
+#' famMkr <- cbind(infoFam,mkr)         # Original data 
 #' alleImputer(famMkr)                  # Imputed alleles (genotypes)
 #' 
 alleImputer=function(data, invisibleOutput=TRUE, dataSummary=TRUE){
   
-  ############################################### I. INTERNAL FUNCTIONS ##########################################
+  ############################################ I. INTERNAL FUNCTIONS #############################################
   {
     # Imputation of a marker (main function)
     mkrImputer=function(mkr){  
       #=== INTERNAL FUNCTIONS ===#
-      classSet=function(mkr){                              # Convertion of the marker into a factor type  
-        mkr <- apply(mkr,2,as.character)                   # Contertion to character
+      classSet=function(mkr){                              # Conversion of the marker into a factor type  
+        mkr <- apply(mkr,2,as.character)                   # Conversion to character
         dfm <- dim(mkr)                                    # Dimensions
         rnfm <- rownames(mkr)                              # Row names
         mkr <- factor(mkr,exclude=c(-9,NA,"NA","<NA>"))    # Factor
@@ -53,7 +53,7 @@ alleImputer=function(data, invisibleOutput=TRUE, dataSummary=TRUE){
       {  
         {
           # Verification of the unique non-missing alleles per marker
-          lcs <- classSet(mkr)                                                 # Convertion of the marker alleles to factor type
+          lcs <- classSet(mkr)                                                 # Conversion of the marker alleles to factor type
           fmkr <- lcs$mkr;  lfm <- lcs$lfm; dfm <- lcs$dfm; rnfm <- lcs$rnfm   # Alleles, levels, dimensions and names of the marker 
           famSize <- nrow(fmkr)                                                # Family size (number of individuals of the family)
           homz <- as.integer(fmkr[,1]==fmkr[,2])                               # Identification of the homozygous allele pairs 
@@ -151,14 +151,14 @@ alleImputer=function(data, invisibleOutput=TRUE, dataSummary=TRUE){
           }
         } 
         ### I.P. b) Parent Imputation
-        else {
+        whichNApar <- which(is.na(parents[,3]))                              # Parents with missing values
+        if (length(whichNApar)>0){
           #-- The alleles in any homozygous child are imputed in parents
-          whichNApar <- which(is.na(parents[,3]))                              # Parents with missing values
           whichHMZchild <- which(children[,3]==1)                              # Homozygous children
           aleHOM <- if (length(whichHMZchild)>=1)                              # Unique homozygous alleles in children
             unique(as.vector(children[whichHMZchild,1:2])) else NULL            
           if (length(whichNApar)>=1&length(whichHMZchild)>=1&!is.null(aleHOM)){ 
-            if (length(aleHOM)==2)                                             # If there are tow unique homozygous alleles
+            if (length(aleHOM)==2)                                             # If there are two unique homozygous alleles
               for (k in whichNApar) parents[k,] <- c(aleHOM,FALSE)             # Imputation in both parents
             else for (k in whichNApar) parents[k,1] <- aleHOM                  # Imputation in one parent
           }
@@ -210,24 +210,38 @@ alleImputer=function(data, invisibleOutput=TRUE, dataSummary=TRUE){
       }
       fam <- list(imputedMkrs=cbind(family[,1:6],imputedMkrs),
                   mkrIncidences=mkrIncidences) # 
-      return(fam)                                                          # 
+      return(fam)                                                           
     }
     # Imputation of multiple families
     famsImputer=function(datasetAlls){
+      insertSubject <- function(existingFam, pos) {                                
+        newSubject <- as.data.frame(matrix(NA,nrow=1,ncol=ncol(existingFam)))
+        newSubject[,1]=f
+        newSubject[,2]=pos
+        names(newSubject)=names(existingFam)
+        existingFam <- rbind(existingFam,newSubject)
+        existingFam <- existingFam[order(c(1:(nrow(existingFam)-1),pos-0.5)),]
+        row.names(existingFam) <- 1:nrow(existingFam)
+        return(existingFam)  
+      }                            # Inserts an NA parent in the family
       fams <- list(imputedMkrs=NULL,mkrIncidences=NULL)                            # Initialization of the list of families
       idFams <- unique(datasetAlls[,1])                                            # Number of identification of the families
       nMkrs <- (ncol(datasetAlls)-6)/2                                             # Number of markers 
       mkCols <- matrix(1:(nMkrs*2),nrow=2)                                         # Columns of the biallelic markers
       for (f in idFams) {                                                          # Scanning of all family identifiers
         family <- datasetAlls[datasetAlls[,1]==f,]                                 # Family data
-        family <- family[order(family[,3]),]                                       # Family sorting according to the third column (paternal ID)
+        family <- family[order(family[,2]),]                                       # Family sorting according to the second column (individual ID)
+        if (family[1,2]!=1) family <- insertSubject(family,1)                      # Insert a row for the father if there is no father
+        if (family[2,2]!=2) family <- insertSubject(family,2)                      # Insert a row for the mother if there is no mother
         fam <- famImputer(family,nMkrs,mkCols)                                     # 
         fams$imputedMkrs <- rbind(fams$imputedMkrs,fam$imputedMkrs)                # 
         fams$mkrIncidences <- rbind(fams$mkrIncidences,
-                                    c(as.character(family[1,1]),fam$mkrIncidences))# 
+                                    c(as.character(family[1,1]),fam$mkrIncidences))
       }
       colnames(fams$mkrIncidences) <- c("Family",paste("Mkr",1:nMkrs,sep=""))
-      fams$mkrIncidencesMessages <- matrix(c("Some children have no common alleles with a parent",
+      mki <- unique(as.vector(as.matrix(fams$mkrIncidences[,-1])))
+      mki <- mki[mki!=""]
+      mkrIncidencesMessages <- matrix(c("Some children have no common alleles with a parent",
                                              "More alleles than possible in this marker",
                                              "Some children have alleles not present in parents",
                                              "Some homozygous children are not compatible in this marker",
@@ -235,81 +249,98 @@ alleImputer=function(data, invisibleOutput=TRUE, dataSummary=TRUE){
                                              "Heterozygous parent and more than two unique homozygous children",
                                              "Heterozygous parent, four unique alleles and more than one unique homozygous children",
                                              "Homozygous parent and more than two unique children",
-                                             "More than four unique children geneotypes in the family",
+                                             "More than four unique children genotypes in the family",
                                              "Homozygous genotypes and four unique alleles in children",
                                              "A marker would require a parent to have three different alleles"),11)
-      rownames(fams$mkrIncidencesMessages) <- c("a","b","c","d","e","f1","f2","f3","g1","g2","h")
-      colnames(fams$mkrIncidencesMessages) <- "Incidence"
+      rownames(mkrIncidencesMessages) <- c("a","b","c","d","e","f1","f2","f3","g1","g2","h")
+      colnames(mkrIncidencesMessages) <- "Incidence"
       fams$mkrIncidences <- as.data.frame(fams$mkrIncidences)
+      fams$mkrIncidencesMessages=mkrIncidencesMessages[which(rownames(mkrIncidencesMessages)%in%mki),,drop=FALSE]
       return(fams)
     }
   }
-  ################################################# II. DATA LOADING #############################################
+  ############################################## II. DATA LOADING ################################################
   {
-    datasetAlls <- alleLoader(data,invisibleOutput, dataSummary)             # 
+    datasetAlls <- alleLoader(data,invisibleOutput=invisibleOutput, dataSummary=dataSummary)
   }
-  ################################################# III. IMPUTATION  #############################################
+  ############################################### III. IMPUTATION  ###############################################
   {
-    imputationTime <- system.time(fams <- famsImputer(datasetAlls))[[3]]     #
+    imputationTime <- system.time(fams <- famsImputer(datasetAlls))[[3]]     
   }
-  ################################################# IV. DATA SUMMARY #############################################
+  ############################################# IV. IMPUTATION SUMMARY ###########################################
   {
+    addedNAs=0         
+    nmkInc=0
+    nfamInc=0
+    if (any(fams$mkrIncidences[,-1]!="")) { 
+      mkCols <- matrix(1:(ncol(datasetAlls)-6),nrow=2)
+      mkInc=which(fams$mkrIncidences[,-1]!="",arr.ind=TRUE)  # Families and markers with incidences
+      nmkInc=nrow(mkInc)
+      nfamInc=length(unique(mkInc[,1]))
+      idFams=unique(datasetAlls[,1])      
+      for (inc in 1:nrow(mkInc)){       # The non NAs alleles in these markers and families have been turned into NA's  
+        imrk=datasetAlls[datasetAlls[,1]==idFams[mkInc[inc,1]],6+mkCols[,mkInc[inc,2]]]
+        addedNAs=addedNAs+length(which(!is.na(imrk)))
+      }
+    }
     nMissAlls <- length(which(is.na(datasetAlls[,-(1:6)])))                  # Number of missing alleles
     nImpMissAlls <- length(which(is.na(fams$imputedMkrs[,-(1:6)])))          # Number of missing alleles after imputation
-    imputationRate <- nImpMissAlls/nMissAlls                                 # Imputation rate
-    fams$imputationSummary <- data.frame(nMissAlls,nImpMissAlls,
+    nImputedAlls <- nMissAlls+addedNAs-nImpMissAlls
+    imputationRate <- nImputedAlls/nMissAlls                                 # Imputation rate
+    fams$imputationSummary <- data.frame(nMissAlls,addedNAs,nImputedAlls,nmkInc,nfamInc,
                                          imputationRate,imputationTime)      # Data summary
   }
-  #################################################  V. DATA STORING  ############################################
+  ###############################################  V. DATA STORING  ##############################################
   {
-    if (is.character(data)) {                                                # 
-      baseName <- file_path_sans_ext(data)                                   # 
-      outName <- paste(baseName,"imputed.ped",sep="_")                       # 
-      write.table(fams$imputedMkrs,sep=" ",quote=FALSE,file=outName)         #
-      if (any(fams$mkrIncidences[,-1]!="")) {                                # 
-        outNameInc <- paste(baseName,"mkrIncidences.txt",sep="_")            #
-        write.table(fams$mkrIncidences,sep=" ",quote=FALSE,file=outNameInc)  #  
+    if (is.character(data)) {                                                
+      baseName <- file_path_sans_ext(data)                                   
+      outName <- paste(baseName,"imputed.ped",sep="_")                       
+      write.table(fams$imputedMkrs,sep=" ",quote=FALSE,file=outName)         
+      if (any(fams$mkrIncidences[,-1]!="")) {                                
+        outNameInc <- paste(baseName,"mkrIncidences.txt",sep="_")            
+        write.table(fams$mkrIncidences,sep=" ",quote=FALSE,file=outNameInc)  
       }
     }
   }
-  ############################################### VI. FUNCTION OUTPUT  ###########################################
+  ############################################## VI. FUNCTION OUTPUT  ############################################
   {
-    if (dataSummary==TRUE) {                                                 # 
-      
+    if (dataSummary==TRUE) {                                                 
+      ### Data summary printing
+      cat("\n======= IMPUTATION SUMMARY =======")                            
+      markerWord= if (nmkInc==1) "marker" else "markers"
+      familyWord= if (nfamInc==1) "family" else "families"
+      hasWord= if (nmkInc==1) "has" else "have"
+      cat(paste("\n",nmkInc," ",markerWord, " (",addedNAs," alleles) ",hasWord, " been \nturned into missing in ",
+                nfamInc," ",familyWord,"\ndue to familial inconsistencies.",sep=""))
+      cat(paste("\nAlleles initially missing:",nMissAlls))                   
+      cat(paste("\nNumber of imputed alleles:",nImputedAlls))                
+      cat(paste("\nImputation rate:",round(imputationRate,2)))               
+      cat(paste("\nImputation time:",round(imputationTime,2)))               
+      cat("\n==================================\n")
+
       ### Imputation/incidences message printing
-      if (all(fams$mkrIncidences[,-1]=="")) {                                # 
-        cat("\nAlleles have been successfully imputed!!!")                   # 
-        fams$mkrIncidences <- NULL                                           # 
-        fams$mkrIncidencesMessages <- NULL                                   # 
-      } else {                                                               #  
-        cat("\nAlleles have been imputed, but some incidences in markers were detected.") 
+      if (all(fams$mkrIncidences[,-1]=="")) {                                
+        fams$mkrIncidences <- NULL                                           
+        fams$mkrIncidencesMessages <- NULL                                   
+      } else {                                                               
+        cat(nImputedAlls,"alleles have been imputed, but some incidences in markers were detected.") 
       }
       
-      ### Data summary printing
-      cat("\n\n===== IMPUTATION SUMMARY =====")                              # 
-      cat(paste("\nNumber of missing alleles:",nMissAlls))                   #
-      cat(paste("\nNumber of imputed alleles:",nImpMissAlls))                # 
-      cat(paste("\nImputation rate:",round(imputationRate,2)))               # 
-      cat(paste("\nImputation time:",round(imputationTime,2)))               # 
-      cat("\n==============================\n")
-      
       ### Storage path
-      if (is.character(data)) {                                              # 
-        cat("\nImputed data have been stored in: \n")
-        cat(paste("\n",outName,"\n",sep=""))                                 # 
-        cat(paste(baseName,"_mkrIncidences.txt",sep=""))                     # 
-      } #else cat(getwd())                                                    # 
+      if (is.character(data)) {                                              
+        cat("\nImputed data have been stored in:")
+        cat(paste("\n",outName,"\n",sep=""))                                 
+        cat(paste(baseName,"_mkrIncidences.txt","\n",sep=""))                
+      } 
       
     } 
-    
     ### Cleaning all empty marker incidences
-    if (all(fams$mkrIncidences[,-1]=="")) {                                  # 
-      fams$mkrIncidences <- NULL                                             # 
-      fams$mkrIncidencesMessages <- NULL                                     # 
+    if (all(fams$mkrIncidences[,-1]=="")) {                                  
+      fams$mkrIncidences <- NULL                                             
+      fams$mkrIncidencesMessages <- NULL                                     
     }    
-    
     ### Returning (or not) the output
-    if (invisibleOutput) return(invisible(fams)) else return(fams)           #     
+    if (invisibleOutput) return(invisible(fams)) else return(fams)           
   }
 
 }
