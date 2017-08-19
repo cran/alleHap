@@ -27,7 +27,7 @@ alleLoader <- function(data, invisibleOutput=TRUE, dataSummary=TRUE, missingValu
   {  
     # Recodification of pre-specified missing values as NA values
     recodeNA=function(data){             
-      chMissing=c(as.character(missingValues,"NA","<NA>"))
+      chMissing=c(as.character(missingValues),"NA","<NA>")
       dataClasses=lapply(data,class)
       cnumeric=which(dataClasses=="integer"|dataClasses=="numeric")
       ccharacter=which(dataClasses=="character")
@@ -81,7 +81,7 @@ alleLoader <- function(data, invisibleOutput=TRUE, dataSummary=TRUE, missingValu
     nMrk <- (ncol(datasetAlls)-6)/2
     names(datasetAlls)[-(1:6)] <- paste("Mk",gl(nMrk,2),"_",gl(2,1,2*nMrk),sep="")
     famAllelesCols <- (1:ncol(datasetAlls))[-(1:6)]             # Markers Alleles columns
-    datasetAlls <- recodeNA(datasetAlls)                        # recode 0 and -9 as NA values
+    datasetAlls <- recodeNA(datasetAlls)                        # recode -9, -99, "NA" and "<NA>" as NA values
     
     ### Data Counting
     nFams <- length(unique(famIDs))                             # Number of families

@@ -1055,19 +1055,20 @@ alleHaplotyper=function(data,NAsymbol="?",alleSep="",invisibleOutput=TRUE,dataSu
     # Data Summary 
     summarizeData=function(fams){
       nAlls <- nrow(fams$IDS)*ncol(fams$IDS)                          # Total number of alleles
-      pPhasAlls <- sum(fams$IDS)/nAlls                                 # Proportion of IDentified/Sorted alleles
-      pNonPhasAlls <- 1-pPhasAlls                                       # Proportion of non-IDentified/Sorted alleles
+      pPhasAlls <- sum(fams$IDS)/nAlls                                # Proportion of IDentified/Sorted alleles
+      pNonPhasAlls <- 1-pPhasAlls                                     # Proportion of non-IDentified/Sorted alleles
       nHapsStats <- colSums(fams$Vdata[,-1])                          # Haplotyping Stats
       nHaps <- nrow(fams$haplotypes)*2                                # Number of haplotypes
       pFullHaps <- nHapsStats["nFullHaps"]/nHaps                      # Proportion of full reconstructed haplotypes
       pEmptyHaps <- nHapsStats["nEmptyHaps"]/nHaps                    # Proportion of empty haplotypes
       pPartialHaps <- nHapsStats["nPartialHaps"]/nHaps                # Proportion partially reconstructed haplotypes
       newImputedAlleles <- nHapsStats["nImputedAlls"]                 # New imputed alleles 
-      reImputationRate <- as.vector((nHapsStats["nImputedAlls"]+
-                                     fams$imputationSummary$nImputedAlls)/fams$imputationSummary$nMissAlls)
+      totalImputedAlleles <- nHapsStats["nImputedAlls"]+fams$imputationSummary$nImputedAlls
+      reImputationRate <- as.vector(totalImputedAlleles/fams$imputationSummary$nMissAlls)
+      if (is.na(reImputationRate)) reImputationRate <- 0
       fams$haplotypingSummary <- data.frame(nAlls,pPhasAlls,pNonPhasAlls,nHaps,pFullHaps,pEmptyHaps,pPartialHaps,
                                             newImputedAlleles,reImputationRate,haplotypingTime) # Haplotyping summary
-      fams[["Vdata"]] <- NULL
+      fams[["Vdata"]] <- NULL; row.names(fams[["haplotypingSummary"]]) <- NULL
       return(fams)
     }
   }

@@ -1,4 +1,4 @@
-## ----include=FALSE-------------------------------------------------------
+## ----include=FALSE, echo=FALSE-------------------------------------------
 library(knitr)
 opts_chunk$set(concordance=TRUE)
 library(alleHap)
@@ -87,10 +87,13 @@ fams2List$haplotypes
 ## ----comment=NA,prompt=TRUE,background='#EFF5FB'-------------------------
 ## PED file path
 family3path <- file.path(find.package("alleHap"), "examples", "example3.ped") 
+
 ## Loading of the ped file placed in previous path
 family3Alls <- alleLoader(family3path,dataSummary=FALSE) 
+
 ## Haplotype reconstruction of previously loaded data
 family3List <- alleHaplotyper(family3Alls,dataSummary=FALSE)
+
 
 # Original data 
 family3Alls  

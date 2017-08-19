@@ -12,9 +12,9 @@ Tools to simulate alphanumeric alleles, impute genetic missing data and reconstr
 \tabular{ll}{
 Package: \tab alleHap\cr
 Type: \tab Package\cr
-Version: \tab 0.9.7\cr
-Date: \tab 2016-07-17\cr
-Depends: \tab abind, tools\cr
+Version: \tab 0.9.9\cr
+Date: \tab 2017-08-19\cr
+Depends: \tab abind, stats, tools, utils\cr
 License: \tab GPL (>=2)\cr
 }
 }

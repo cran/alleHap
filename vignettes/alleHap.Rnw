@@ -23,8 +23,9 @@
 
 \begin{document}
 %\SweaveOpts{concordance=TRUE}
+%\SweaveOpts{concordance=TRUE}
 
-<<include=FALSE>>=
+<<include=FALSE, echo=FALSE>>=
 library(knitr)
 opts_chunk$set(concordance=TRUE)
 library(alleHap)
@@ -111,7 +112,7 @@ An example of the values of this matrix (right) and the corresponding phased gen
 \begin{minipage}{\textwidth}
 \centering
 \begin{tabular}{c|ccccccc|ccccccc}
-\multicolumn{1}{r|}{}       & \multicolumn{7}{c|}{Phased Data}                      & \multicolumn{7}{c}{IDS Info.}           \\ \hline
+\multicolumn{1}{r|}{}       & \multicolumn{7}{c|}{Phased Data}                      & \multicolumn{7}{c}{IDS Matrix}           \\ \hline
 Marker                      & 1     & 2     & 3     & 4     & 5     & 6     & 7     & 1   & 2   & 3   & 4   & 5   & 6   & 7   \\ \hline
 \multirow{2}{*}{Parents}    & a$|$a & a$|$a & a$|$a & a$|$a & a$|$b & a$|$b & a$|$b & 1   & 1   & 1   & 1   & 1   & 1   & 1   \\
                             & a$|$a & b$|$b & a$|$b & b$|$c & a$|$b & a$|$c & c$|$d & 1   & 1   & 1   & 1   & 1   & 1   & 1   \\ \hline
@@ -133,7 +134,7 @@ Sometimes, missing values may occur. These can be located either in parents or c
 \begin{minipage}{\textwidth}
 \centering
 \begin{tabular}{c|ccccccc|ccccccc}
-\multicolumn{1}{r|}{}       & \multicolumn{7}{c|}{Phased Data}          & \multicolumn{7}{c}{IDS Info.}           \\ \hline
+\multicolumn{1}{r|}{}       & \multicolumn{7}{c|}{Phased Data}          & \multicolumn{7}{c}{IDS Matrix}           \\ \hline
 Marker                      & 1     & 2     & 3     & 4     & 5     & 6     & 7     & 1   & 2   & 3   & 4   & 5   & 6   & 7   \\ \hline
 \multirow{2}{*}{Parents}    & a$|$a & a$|$a & a$|$a & a$|$a & NA    & NA    & NA    & 1   & 1   & 1   & 1   & 0   & 0   & 0   \\
                             & NA    & NA    & NA    & b$|$c & a$|$b & a$|$b & a$|$b & 0   & 0   & 0   & 1   & 1   & 1   & 1   \\ \hline
@@ -191,7 +192,7 @@ colnames(Mkrs)=c("Mk1_1","Mk1_2","Mk2_1","Mk2_2","Mk3_1","Mk3_2")
 \texttt{alleSimulator} function generates the clinical and genetic information of a group of families according to the previously defined parameters. This function performs several steps in order to simulate the data:
 
 \begin{enumerate}[I.]
-  \item \textbf{Loading of Internal Functions}: In this step all the necessary functions to simulate the data are loaded. These functions are \emph{simHapSelection} (which selects n different haplotypes between the total number of possible haplotypes; these selected haplotypes constitutes the population of haplotypes 'popHaplos', from which the different families will be derived), \emph{simOffspring} (which generates n offspring by selecting randomly one haplotype from each parent), \emph{simOneFamily} (which simulates one family from a population containing the haplotypes 'popHaplos') and \emph{simRecombHap} (which simulates the recombination of haplotypes).
+  \item \textbf{Loading of Internal Functions}: In this step all the necessary functions to simulate the data are loaded. These functions are \emph{labelMrk} (which creates the 'A','C','G','T' character labels), \emph{simHapSelection} (which selects n different haplotypes between the total number of possible haplotypes; these selected haplotypes constitutes the population of haplotypes 'popHaplos', from which the different families will be derived), \emph{simOffspring} (which generates n offspring by selecting randomly one haplotype from each parent), \emph{simOneFamily} (which simulates one family from a population containing the haplotypes 'popHaplos') and \emph{simRecombHap} (which simulates the recombination of haplotypes).
   \item \textbf{Alleles per Marker}: The second step is the generation of the number of different alleles in each marker. Users can specify the vector \emph{numAlleles} with the desired number of alleles in each marker.  If \emph{numAlleles} is NULL, for markers of character type, two alleles are assigned; for markers of numeric type, a number of alleles between 2 and 9 are randomly generated for each marker.
   \item \textbf{Haplotypes in population}: \emph{alleSimulator} generates the genotypes in a family from the haplotypes in parents. For every family the four haplotypes of the parents must be randomly selected from the pool of possible haplotypes in the population. As with many markers (and/or many alleles per marker) the number of possible different haplotypes can be very high, \emph{alleSimulator} first generates a subset of \emph{nHaplos} haplotypes of the population, from which the parental haplotypes will be selected. By default, the value of \emph{nHaplos} is limited to 1200 haplotypes.
   \item \textbf{Data Generation and Concatenation}: In this step, for each family identification data (family ID, parent ID, etc), clinical data (affected/non-affected), and genetical data are simulated. Data of all families are sequentially concatenated in a unique dataframe.
@@ -392,10 +393,13 @@ fams2List$haplotypes
 <<comment=NA,prompt=TRUE,background='#EFF5FB'>>=
 ## PED file path
 family3path <- file.path(find.package("alleHap"), "examples", "example3.ped") 
+
 ## Loading of the ped file placed in previous path
 family3Alls <- alleLoader(family3path,dataSummary=FALSE) 
+
 ## Haplotype reconstruction of previously loaded data
 family3List <- alleHaplotyper(family3Alls,dataSummary=FALSE)
+
 
 # Original data 
 family3Alls  

@@ -287,8 +287,10 @@ alleImputer=function(data, invisibleOutput=TRUE, dataSummary=TRUE){
     nImpMissAlls <- length(which(is.na(fams$imputedMkrs[,-(1:6)])))          # Number of missing alleles after imputation
     nImputedAlls <- nMissAlls+addedNAs-nImpMissAlls
     imputationRate <- nImputedAlls/nMissAlls                                 # Imputation rate
-    fams$imputationSummary <- data.frame(nMissAlls,addedNAs,nImputedAlls,nmkInc,nfamInc,
-                                         imputationRate,imputationTime)      # Data summary
+    if (is.na(imputationRate)) imputationRate <- 0
+    fams$imputationSummary <- data.frame(nMissAlls,addedNAs,nImputedAlls,
+                              nmkInc,nfamInc,imputationRate,imputationTime)  # Data summary
+    row.names(fams[["imputationSummary"]]) <- NULL
   }
   ###############################################  V. DATA STORING  ##############################################
   {
